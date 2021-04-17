@@ -1,12 +1,12 @@
 import logging
 import os
 
-from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram.ext import Updater, CallbackContext
 from facebook_scraper import get_posts
 
 TOKEN = os.getenv('RAM_TOKEN')
 CHANNEL = os.getenv('RAM_CHANNEL')
+PAGES = ['Tervetuloameille', 'sanojaelamasta', 'pienia.sanoja']
 CHECK_INTERVAL = 180
 
 # Enable logging
@@ -16,26 +16,36 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-last_post_id = 0
+last_post_ids = {p: 0 for p in PAGES}
+
+
+def check_posts_for_page(page: str):
+    posts = list(get_posts(page, pages=1))
+    post = posts[0]
+    post_id = int(post['post_id'])
+
+    if last_post_ids[page] == post_id:
+        return None
+
+    last_post_ids[page] = post_id
+    photo = post['image']
+    # telegram only accepts 200 characters at maximum
+    post_text = post['post_text'][:200] or ''
+
+    return (photo, post_text)
 
 
 def check_posts(context: CallbackContext) -> None:
-    global last_post_id
     bot = context.bot
-    posts = list(get_posts('Tervetuloameille', pages=1))
-    post = posts[0]
-    post_id = int(post['post_id'])
-    if last_post_id == post_id:
-        return
-    last_post_id = post_id
-    photo = post['image']
-    post_text = post['post_text'] or ''
-    bot.sendPhoto(chat_id='@{}'.format(CHANNEL), photo=photo, caption=post_text)
+    for page in PAGES:
+        post = check_posts_for_page(page)
+        if post:
+            bot.sendPhoto(chat_id='@{}'.format(CHANNEL),
+                          photo=post[0], caption=post[1])
 
 
 def main() -> None:
     updater = Updater(TOKEN)
-    dispatcher = updater.dispatcher
 
     updater.start_polling()
     updater.job_queue.run_repeating(check_posts, CHECK_INTERVAL, 1)
