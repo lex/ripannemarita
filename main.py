@@ -21,18 +21,22 @@ last_post_ids = {p: 0 for p in PAGES}
 
 def check_posts_for_page(page: str):
     posts = list(get_posts(page, pages=1))
-    post = posts[0]
-    post_id = int(post['post_id'])
 
-    if last_post_ids[page] == post_id:
+    try:
+        post = posts[0]
+        post_id = int(post['post_id'])
+
+        if last_post_ids[page] == post_id:
+            return None
+
+        last_post_ids[page] = post_id
+        photo = post['image']
+        # telegram only accepts 200 characters at maximum
+        post_text = post['post_text'][:200] or ''
+
+        return (photo, post_text)
+    except:
         return None
-
-    last_post_ids[page] = post_id
-    photo = post['image']
-    # telegram only accepts 200 characters at maximum
-    post_text = post['post_text'][:200] or ''
-
-    return (photo, post_text)
 
 
 def check_posts(context: CallbackContext) -> None:
